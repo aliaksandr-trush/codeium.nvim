@@ -6,7 +6,8 @@ local curl = require("plenary.curl")
 local config = require("codeium.config")
 local default_mod = 438 -- 666
 
-local M = {}
+---@class codeium.io
+local io = {}
 
 local function check_job(job, status)
 	if status == 0 then
@@ -31,7 +32,7 @@ local function check_job_wrap(fn)
 	end
 end
 
-function M.executable(path)
+function io.executable(path)
 	local override = config.options.tools[path]
 	if override then
 		return vim.fn.executable(override)
@@ -39,7 +40,7 @@ function M.executable(path)
 	return vim.fn.executable(path)
 end
 
-function M.touch(path)
+function io.touch(path)
 	local fd, err = uv.fs_open(path, "w+", default_mod)
 	if err or not fd then
 		log.error("failed to create file ", path, ": ", err)
@@ -58,7 +59,7 @@ function M.touch(path)
 	return stat.mtime.sec
 end
 
-function M.stat_mtime(path)
+function io.stat_mtime(path)
 	local stat, err = uv.fs_stat(path)
 	if err or not stat then
 		log.error("could not stat ", path, ": ", err)
@@ -68,7 +69,7 @@ function M.stat_mtime(path)
 	return stat.mtime.sec
 end
 
-function M.file_exists(path)
+function io.file_exists(path)
 	local stat, err = uv.fs_stat(path)
 	if err or not stat then
 		return false
@@ -76,7 +77,7 @@ function M.file_exists(path)
 	return stat.type == "file"
 end
 
-function M.readdir(path)
+function io.readdir(path)
 	local fd, err = uv.fs_opendir(path, nil, 1000)
 	if err then
 		log.error("could not open dir ", path, ": ", err)
@@ -93,13 +94,13 @@ function M.readdir(path)
 	return entries
 end
 
-function M.tempdir(suffix)
+function io.tempdir(suffix)
 	local dir = vim.fn.tempname() .. (suffix or "")
 	vim.fn.mkdir(dir, "p")
 	return dir
 end
 
-function M.timer(delay, rep, fn)
+function io.timer(delay, rep, fn)
 	local timer = uv.new_timer()
 	fn = vim.schedule_wrap(fn)
 	local function cancel()
@@ -119,7 +120,7 @@ function M.timer(delay, rep, fn)
 	return cancel
 end
 
-function M.read_json(path)
+function io.read_json(path)
 	local fd, err, errcode = uv.fs_open(path, "r", default_mod)
 	if err or not fd then
 		if errcode == "ENOENT" then
@@ -152,7 +153,7 @@ function M.read_json(path)
 	return json, nil
 end
 
-function M.write_json(path, json)
+function io.write_json(path, json)
 	local ok, text = pcall(vim.fn.json_encode, json)
 	if not ok then
 		log.error("could not encode JSON ", path, ": ", text)
@@ -182,8 +183,8 @@ function M.write_json(path, json)
 	return size, nil
 end
 
-function M.get_command_output(...)
-	local job = M.job({ ... })
+function io.get_command_output(...)
+	local job = io.job({ ... })
 	local output, err = job:sync(1000)
 	if err and err ~= 0 then
 		log.debug("job failed ", err)
@@ -199,7 +200,7 @@ function M.get_command_output(...)
 end
 
 local system_info_cache = nil
-function M.get_system_info()
+function io.get_system_info()
 	if system_info_cache then
 		return system_info_cache
 	end
@@ -236,7 +237,7 @@ function M.get_system_info()
 end
 
 ---@return plenary.Job
-function M.job(cmd)
+function io.job(cmd)
 	local o = config.options
 	local tool_name = cmd[1]
 	local tool = o.tools[tool_name]
@@ -294,15 +295,15 @@ function M.job(cmd)
 	return Job:new(result)
 end
 
-function M.generate_uuid()
+function io.generate_uuid()
 	return string.gsub("xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx", "[xy]", function(c)
 		return string.format("%x", (c == "x") and (math.random(16) - 1) or (((math.random(16) - 1) % 4) + 8))
 	end)
 end
 
-function M.gunzip(path, callback)
-	if M.executable("gzip") then
-		M.job({
+function io.gunzip(path, callback)
+	if io.executable("gzip") then
+		io.job({
 			"gzip",
 			"-d",
 			path,
@@ -367,14 +368,14 @@ function M.gunzip(path, callback)
 	vim.o.shellxquote = shellxquote
 end
 
-function M.set_executable(path, callback)
-	if M.get_system_info().os == "windows" then
+function io.set_executable(path, callback)
+	if io.get_system_info().os == "windows" then
 		-- determined by the filename
 		-- improvement: potentially unblock the file
 		callback(nil, nil)
 		return
 	end
-	M.job({
+	io.job({
 		"chmod",
 		"+x",
 		path,
@@ -382,7 +383,7 @@ function M.set_executable(path, callback)
 	}):start()
 end
 
-function M.download(url, path, callback)
+function io.download(url, path, callback)
 	curl.get(url, {
 		output = path,
 		compressed = false,
@@ -398,7 +399,7 @@ function M.download(url, path, callback)
 	})
 end
 
-function M.post(url, params)
+function io.post(url, params)
 	if type(params.body) == "table" then
 		params.headers = params.headers or {}
 		params.headers["content-type"] = params.headers["content-type"] or "application/json"
@@ -429,15 +430,15 @@ function M.post(url, params)
 	curl.post(url, params)
 end
 
-function M.shell_open(url)
-	local info = M.get_system_info()
+function io.shell_open(url)
+	local info = io.get_system_info()
 	if info.os == "linux" then
-		return M.get_command_output("xdg-open", url)
+		return io.get_command_output("xdg-open", url)
 	elseif info.os == "macos" then
-		return M.get_command_output("/usr/bin/open", url)
+		return io.get_command_output("/usr/bin/open", url)
 	else
-		return M.get_command_output("cmd", "/C start " .. url:gsub("&", "^&"))
+		return io.get_command_output("cmd", "/C start " .. url:gsub("&", "^&"))
 	end
 end
 
-return M
+return io

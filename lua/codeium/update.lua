@@ -2,11 +2,13 @@ local config = require("codeium.config")
 local versions = require("codeium.versions")
 local io = require("codeium.io")
 local notify = require("codeium.notify")
-local M = {}
+
+---@class codeium.update
+local update = {}
 
 local cached = nil
 local language_server_download_url = "https://github.com"
-function M.get_bin_info()
+function update.get_bin_info()
 	if cached then
 		return cached
 	end
@@ -47,8 +49,8 @@ function M.get_bin_info()
 	return cached
 end
 
-function M.validate(callback)
-	local info = M.get_bin_info()
+function update.validate(callback)
+	local info = update.get_bin_info()
 	local prefix = "STABLE_BUILD_SCM_REVISION: "
 
 	if not io.file_exists(info.bin) then
@@ -90,11 +92,11 @@ function M.validate(callback)
 	}):start()
 end
 
-function M.download(callback)
-	local info = M.get_bin_info()
+function update.download(callback)
+	local info = update.get_bin_info()
 
 	if io.file_exists(info.bin) then
-		M.validate(callback)
+		update.validate(callback)
 		return
 	end
 
@@ -120,7 +122,7 @@ function M.download(callback)
 				hint("chmod_failed")
 			else
 				notify.info("Codeium.nvim: server updated")
-				M.validate(callback)
+				update.validate(callback)
 			end
 		end)
 	end
@@ -154,4 +156,4 @@ function M.download(callback)
 	download()
 end
 
-return M
+return update

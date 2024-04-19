@@ -1,6 +1,7 @@
 local log = require("codeium.log")
 
-local M = {}
+---@class codeium.notify
+local notify = {}
 local opts = {
 	title = "Codeium",
 }
@@ -16,10 +17,10 @@ local function notify_at_level(name, level)
 	end
 end
 
-M.trace = notify_at_level("trace", vim.log.levels.TRACE)
-M.debug = notify_at_level("debug", vim.log.levels.DEBUG)
-M.info = notify_at_level("info", vim.log.levels.INFO)
-M.warn = notify_at_level("warn", vim.log.levels.WARN)
-M.error = notify_at_level("error", vim.log.levels.ERROR)
+notify.trace = notify_at_level("trace", vim.log.levels.TRACE)
+notify.debug = notify_at_level("debug", vim.log.levels.DEBUG)
+notify.info = notify_at_level("info", vim.log.levels.INFO)
+notify.warn = notify_at_level("warn", vim.log.levels.WARN)
+notify.error = notify_at_level("error", vim.log.levels.ERROR)
 
-return M
+return notify
