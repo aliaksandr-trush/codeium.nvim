@@ -1,4 +1,5 @@
 local versions = require("codeium.versions")
+local chat = require("codeium.chat")
 local config = require("codeium.config")
 local io = require("codeium.io")
 local log = require("codeium.log")
@@ -149,6 +150,10 @@ function Server:new()
 	local healthy = false
 
 	local function request(fn, payload, callback)
+		if not port then
+			notify.info("Server not started yet")
+			return
+		end
 		local url = "http://127.0.0.1:" .. port .. "/exa.language_server_pb.LanguageServerService/" .. fn
 		io.post(url, {
 			body = payload,
@@ -157,7 +162,8 @@ function Server:new()
 	end
 
 	local function chat_request(fn, payload, callback)
-		local url = "http://127.0.0.1:" .. chat_ports.chatClientPort .. "/exa.language_server_pb.LanguageServerService/" .. fn
+		local url = "http://127.0.0.1:" ..
+			chat_ports.chatClientPort .. "/exa.language_server_pb.LanguageServerService/" .. fn
 		io.post(url, {
 			body = payload,
 			callback = callback,
@@ -385,30 +391,49 @@ function Server:new()
 		}, noop)
 	end
 
+	local codeium_workspace_root_hints = { '.bzr', '.git', '.hg', '.svn', '_FOSSIL_', 'package.json' }
+	function GetProjectRoot()
+		local last_dir = ''
+		local dir = vim.fn.getcwd()
+		while dir ~= last_dir do
+			for root_hint in ipairs(codeium_workspace_root_hints) do
+				local hint = dir .. '/' .. root_hint
+				if vim.fn.isdirectory(hint) or vim.fn.filereadable(hint) then
+					return dir
+				end
+			end
+			last_dir = dir
+			dir = vim.fn.fnamemodify(dir, ':h')
+		end
+		return vim.fn.getcwd()
+	end
+
 	function m.add_workspace()
-		local project_root = vim.fn.getcwd()
+		local project_root = GetProjectRoot()
 		-- workspace already tracked by server
 		if workspaces[project_root] then
 			return
 		end
-		-- unable to track hidden path
-		for entry in project_root:gmatch("[^/]+") do
-			if entry:sub(1, 1) == "." then
-				return
-			end
-		end
 
-		request("AddTrackedWorkspace", { workspace = project_root, metadata = get_request_metadata() }, function(_, err)
-			if err then
-				notify.error("failed to add workspace: " .. err.out)
+		io.timer(300, 500, function(cancel)
+			if not port then
 				return
 			end
-			workspaces[project_root] = true
+			request("AddTrackedWorkspace", { workspace = project_root, metadata = get_request_metadata() },
+				function(_, err)
+					if err then
+						notify.error("failed to add workspace: " .. err.out)
+						return
+					end
+					workspaces[project_root] = true
+					notify.info("Workspace " .. project_root .. " added")
+				end)
+			cancel()
 		end)
 	end
 
 	function m.init_chat()
-		io.timer(100, 500, function(cancel)
+		io.timer(200, 500, function(cancel)
 			if not port then
 				return
 			end
@@ -465,16 +490,24 @@ function Server:new()
 		end
 	end
 
-	function m.request_chat_action(document, editor_options, prompt, callback)
+	---@param indent table
+	---@param callback function
+	function m.request_chat_action(indent, callback)
+		local current_timestamp = os.time()
+		local message_id = "user-" .. tostring(current_timestamp)
 		local body = {
-			message_id = 1,
-			source = 'User',
-			timestamp = timestamp(),
+			message_id = message_id,
+			source = 'CHAT_MESSAGE_SOURCE_USER',
+			timestamp = current_timestamp,
 			conversation_id = 1,
-			content = { indents = { generic = { text = prompt } } },
+			content = { indent = indent },
 			in_progress = false
 		}
-		m.chat_request("GetAction", body, "prompt", callback)
+		chat_request("GetAction", body, callback)
+	end
+
+	function m.request_add_unit_test()
+		m.request_chat_action(chat.intent_function_unit_tests(), noop)
 	end
 
 	function m.shutdown()
