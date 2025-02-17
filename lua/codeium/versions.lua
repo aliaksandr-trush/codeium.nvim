@@ -1,4 +1,4 @@
-local nvim_version_info = vim.api.nvim_command_output("version")
+local nvim_version_info = vim.api.nvim_cmd({ cmd = "version",  }, { output = true })
 local _, _, full_match = string.find(nvim_version_info, [[NVIM v(%d+.%d+.%d+[.-a-zA-Z0-9]*)]])
 
 if not full_match then
