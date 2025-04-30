@@ -201,7 +201,9 @@ function Server:start()
 	self.current_cookie = next_cookie()
 
 	if not api_key then
-		io.timer(1000, 0, self:start())
+		io.timer(1000, 0, function()
+			self:start()
+		end)
 		return
 	end
 
@@ -396,7 +398,7 @@ function Server:request_completion(document, editor_options, other_documents, ca
 		other_documents = other_documents,
 	}, function(body, err)
 		if err then
-			if err.status == 503 or err.status == 408 then
+			if err.status == 503 or err.status == 408 or config.options.quiet then
 				-- Service Unavailable or Timeout error
 				return complete(false, nil)
 			end
@@ -422,7 +424,9 @@ function Server:request_completion(document, editor_options, other_documents, ca
 
 		local ok, json = pcall(vim.fn.json_decode, body)
 		if not ok then
-			notify.error("completion request failed: " .. "invalid JSON:" .. json)
+			if not config.options.quiet then
+				notify.error("completion request failed", "invalid JSON:", json)
+			end
 			return
 		end
 

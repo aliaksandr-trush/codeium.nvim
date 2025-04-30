@@ -171,9 +171,9 @@ local function completion_inserter(current_completion, insert_text)
 
 	local cursor_text = delta == 0 and "" or '<C-O>:exe "go" line2byte(line("."))+col(".")+(' .. delta .. ")<CR>"
 
-	server.accept_completion(current_completion.completion.completionId)
+	server:accept_completion(current_completion.completion.completionId)
 
-	return delete_range .. insert_text .. cursor_text
+	return '<C-g>u' .. delete_range .. insert_text .. cursor_text
 end
 
 function M.accept()
@@ -438,7 +438,7 @@ function M.complete(opts)
 
 	codeium_status = "waiting"
 
-	local cancel = server.request_completion(
+	local cancel = server:request_completion(
 		data.document,
 		data.editor_options,
 		data.other_documents,
@@ -484,7 +484,7 @@ end
 
 function M.debounced_complete()
 	M.clear()
-	if config.options.virtual_text.manual or not server.is_healthy() or not M.filetype_enabled(vim.fn.bufnr("")) then
+	if config.options.virtual_text.manual or not server:is_healthy() or not M.filetype_enabled(vim.fn.bufnr("")) then
 		return
 	end
 	local current_buf = vim.fn.bufnr("")
